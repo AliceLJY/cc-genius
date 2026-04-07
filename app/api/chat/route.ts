@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { writeFile, unlink, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { parseStreamLine } from '@/lib/stream-parser';
@@ -32,6 +32,33 @@ function cleanupFiles(paths: string[]) {
   }
 }
 
+function buildArgs(model: string, ccSessionId: string | undefined, prompt: string): string[] {
+  const args: string[] = [
+    '-p',
+    '--output-format', 'stream-json',
+    '--verbose',
+    '--include-partial-messages',
+    '--model', model || 'sonnet',
+  ];
+  if (ccSessionId) {
+    args.push('--resume', ccSessionId);
+  }
+  args.push(prompt);
+  return args;
+}
+
+function spawnCLI(args: string[]): ChildProcess {
+  return spawn('claude', args, {
+    env: {
+      ...process.env,
+      LANG: 'en_US.UTF-8',
+      HOME: process.env.HOME || '/Users/anxianjingya',
+    },
+    cwd: process.env.HOME || '/Users/anxianjingya',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
 export async function POST(req: Request) {
   const body: ChatRequest = await req.json();
   const { message, model, ccSessionId, images } = body;
@@ -50,20 +77,6 @@ export async function POST(req: Request) {
     console.error('[CC Genius] Failed to save temp files:', err);
   }
 
-  // Build CLI args
-  const args: string[] = [
-    '-p', // print mode (non-interactive)
-    '--output-format', 'stream-json',
-    '--verbose',
-    '--include-partial-messages',
-    '--model', model || 'sonnet',
-  ];
-
-  // Multi-turn: resume previous CC session
-  if (ccSessionId) {
-    args.push('--resume', ccSessionId);
-  }
-
   // Build the prompt with file references
   let prompt = message || '';
   if (tempFiles.length > 0) {
@@ -72,122 +85,131 @@ export async function POST(req: Request) {
       ? `${prompt}\n\n${fileRefs}\n\nPlease read and analyze the attached file(s) above.`
       : `${fileRefs}\n\nPlease read and describe the attached file(s) above.`;
   }
-  args.push(prompt);
 
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     start(controller) {
-      console.log('[CC CLI] spawning:', 'claude', args.join(' '));
-      const proc = spawn('claude', args, {
-        env: {
-          ...process.env,
-          LANG: 'en_US.UTF-8',
-          HOME: process.env.HOME || '/Users/anxianjingya',
-        },
-        cwd: process.env.HOME || '/Users/anxianjingya',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      // Try with resume first; if it fails, retry without resume
+      const attemptedResume = !!ccSessionId;
+      const args = buildArgs(model, ccSessionId, prompt);
 
-      let buffer = '';
-      let capturedSessionId = '';
+      function runProcess(procArgs: string[], isRetry: boolean) {
+        console.log('[CC CLI] spawning:', 'claude', procArgs.join(' ').slice(0, 200));
+        const proc = spawnCLI(procArgs);
 
-      proc.stdout.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete last line in buffer
+        let buffer = '';
+        let capturedSessionId = '';
+        let gotOutput = false;
 
-        for (const line of lines) {
-          const parsed = parseStreamLine(line);
-          if (!parsed) continue;
+        proc.stdout?.on('data', (chunk: Buffer) => {
+          gotOutput = true;
+          buffer += chunk.toString();
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-          switch (parsed.kind) {
-            case 'text_delta':
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: parsed.text })}\n\n`)
-              );
-              break;
+          for (const line of lines) {
+            const parsed = parseStreamLine(line);
+            if (!parsed) continue;
 
-            case 'session_id':
-              if (parsed.sessionId && !capturedSessionId) {
-                capturedSessionId = parsed.sessionId;
+            switch (parsed.kind) {
+              case 'text_delta':
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: parsed.text })}\n\n`)
+                );
+                break;
+
+              case 'session_id':
+                if (parsed.sessionId && !capturedSessionId) {
+                  capturedSessionId = parsed.sessionId;
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ type: 'session_id', sessionId: parsed.sessionId })}\n\n`
+                    )
+                  );
+                }
+                break;
+
+              case 'message_done':
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+                );
+                break;
+
+              case 'result':
                 controller.enqueue(
                   encoder.encode(
-                    `data: ${JSON.stringify({ type: 'session_id', sessionId: parsed.sessionId })}\n\n`
+                    `data: ${JSON.stringify({
+                      type: 'result',
+                      sessionId: parsed.sessionId || capturedSessionId,
+                    })}\n\n`
                   )
                 );
-              }
-              break;
+                break;
 
-            case 'message_done':
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
-              );
-              break;
-
-            case 'result':
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({
-                    type: 'result',
-                    sessionId: parsed.sessionId || capturedSessionId,
-                  })}\n\n`
-                )
-              );
-              break;
-
-            case 'error':
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: 'error', error: parsed.error })}\n\n`
-                )
-              );
-              break;
+              case 'error':
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ type: 'error', error: parsed.error })}\n\n`
+                  )
+                );
+                break;
+            }
           }
-        }
-      });
+        });
 
-      let stderrBuffer = '';
-      proc.stderr.on('data', (chunk: Buffer) => {
-        stderrBuffer += chunk.toString();
-      });
+        let stderrBuffer = '';
+        proc.stderr?.on('data', (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        });
 
-      proc.stderr.on('end', () => {
-        if (stderrBuffer.trim()) {
-          console.error('[CC CLI stderr]', stderrBuffer.trim());
-        }
-      });
+        proc.on('close', (code) => {
+          // If resume failed (exit 1, no output) and this is the first attempt, retry without resume
+          if (code === 1 && attemptedResume && !isRetry && !gotOutput) {
+            console.log('[CC CLI] Resume failed, retrying without --resume');
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: 'delta', text: '_(Session expired, starting fresh)_\n\n' })}\n\n`
+              )
+            );
+            const retryArgs = buildArgs(model, undefined, prompt);
+            runProcess(retryArgs, true);
+            return;
+          }
 
-      proc.on('close', (code) => {
-        // Clean up temp files
-        cleanupFiles(tempFiles);
+          // Clean up temp files
+          cleanupFiles(tempFiles);
 
-        if (code !== 0 && code !== null) {
-          const errMsg = stderrBuffer.trim() || `Process exited with code ${code}`;
-          console.error(`[CC CLI] exit code ${code}, stderr:`, stderrBuffer.trim());
+          if (code !== 0 && code !== null) {
+            const errMsg = stderrBuffer.trim() || `Process exited with code ${code}`;
+            console.error(`[CC CLI] exit code ${code}, stderr:`, stderrBuffer.trim());
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: 'error', error: errMsg })}\n\n`
+              )
+            );
+          }
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'close' })}\n\n`));
+          controller.close();
+        });
+
+        proc.on('error', (err) => {
+          cleanupFiles(tempFiles);
           controller.enqueue(
             encoder.encode(
-              `data: ${JSON.stringify({ type: 'error', error: errMsg })}\n\n`
+              `data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`
             )
           );
-        }
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'close' })}\n\n`));
-        controller.close();
-      });
+          controller.close();
+        });
 
-      proc.on('error', (err) => {
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`
-          )
-        );
-        controller.close();
-      });
+        // Handle request abort
+        req.signal?.addEventListener('abort', () => {
+          proc.kill('SIGTERM');
+        });
+      }
 
-      // Handle request abort
-      req.signal?.addEventListener('abort', () => {
-        proc.kill('SIGTERM');
-      });
+      runProcess(args, false);
     },
   });
 
