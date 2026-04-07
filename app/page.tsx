@@ -1,65 +1,145 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import Sidebar from '@/components/Sidebar';
+import ChatArea from '@/components/ChatArea';
+import ThemeToggle from '@/components/ThemeToggle';
+import { useConversations } from '@/hooks/useConversations';
+import { useChat } from '@/hooks/useChat';
+import { useTheme } from '@/hooks/useTheme';
+import type { ModelType, ImageAttachment } from '@/lib/types';
 
 export default function Home() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [model, setModel] = useState<ModelType>('sonnet');
+  const { theme, setTheme } = useTheme();
+
+  const {
+    conversations,
+    activeId,
+    create,
+    remove,
+    select,
+    refresh,
+    searchQuery,
+    setSearchQuery,
+  } = useConversations();
+
+  const { messages, isStreaming, send, stop, loadMessages } = useChat(activeId);
+
+  // Load messages when conversation changes
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  // Load saved model preference
+  useEffect(() => {
+    const saved = localStorage.getItem('preferred-model') as ModelType | null;
+    if (saved) setModel(saved);
+  }, []);
+
+  // Detect screen size for sidebar
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const handler = (e: MediaQueryListEvent) => setSidebarOpen(e.matches);
+    setSidebarOpen(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const handleModelChange = useCallback((m: ModelType) => {
+    setModel(m);
+    localStorage.setItem('preferred-model', m);
+  }, []);
+
+  const handleSend = useCallback(
+    async (text: string, images?: ImageAttachment[]) => {
+      let targetId = activeId;
+      if (!targetId) {
+        const conv = await create(model);
+        targetId = conv.id;
+      }
+      send(text, model, images);
+      // Refresh sidebar to update title/order
+      setTimeout(() => refresh(), 500);
+    },
+    [activeId, model, create, send, refresh]
+  );
+
+  const handleNewChat = useCallback(async () => {
+    await create(model);
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, [create, model]);
+
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      select(id);
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      }
+    },
+    [select]
+  );
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (confirm('Delete this conversation?')) {
+        await remove(id);
+        refresh();
+      }
+    },
+    [remove, refresh]
+  );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="h-dvh flex overflow-hidden bg-white dark:bg-gray-950">
+      {/* Sidebar overlay (mobile) */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={`
+          fixed inset-y-0 left-0 z-50 w-[280px] transform transition-transform duration-200
+          lg:relative lg:translate-x-0 lg:z-auto
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        <Sidebar
+          conversations={conversations}
+          activeId={activeId}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSelect={handleSelectConversation}
+          onDelete={handleDelete}
+          onCreate={handleNewChat}
+          onClose={() => setSidebarOpen(false)}
+        />
+        {/* Theme toggle at bottom of sidebar */}
+        <div className="absolute bottom-4 left-3 pb-[env(safe-area-inset-bottom)]">
+          <ThemeToggle theme={theme} setTheme={setTheme} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
+
+      {/* Main chat area */}
+      <div className="flex-1 min-w-0">
+        <ChatArea
+          messages={messages}
+          isStreaming={isStreaming}
+          model={model}
+          conversationId={activeId}
+          onSend={handleSend}
+          onStop={stop}
+          onModelChange={handleModelChange}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
+      </div>
     </div>
   );
 }
