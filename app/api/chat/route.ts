@@ -100,10 +100,10 @@ export async function POST(req: Request) {
 
         let buffer = '';
         let capturedSessionId = '';
-        let gotOutput = false;
+        let gotTextOutput = false; // Only true when we get actual text content
+        let resumeError = false;  // True when resume fails with error result
 
         proc.stdout?.on('data', (chunk: Buffer) => {
-          gotOutput = true;
           buffer += chunk.toString();
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
@@ -114,6 +114,7 @@ export async function POST(req: Request) {
 
             switch (parsed.kind) {
               case 'text_delta':
+                gotTextOutput = true;
                 controller.enqueue(
                   encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: parsed.text })}\n\n`)
                 );
@@ -148,11 +149,16 @@ export async function POST(req: Request) {
                 break;
 
               case 'error':
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: 'error', error: parsed.error })}\n\n`
-                  )
-                );
+                // If we're resuming and got an error (session not found), mark for retry
+                if (attemptedResume && !isRetry) {
+                  resumeError = true;
+                } else {
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ type: 'error', error: parsed.error })}\n\n`
+                    )
+                  );
+                }
                 break;
             }
           }
@@ -164,8 +170,10 @@ export async function POST(req: Request) {
         });
 
         proc.on('close', (code) => {
-          // If resume failed (exit 1, no output) and this is the first attempt, retry without resume
-          if (code === 1 && attemptedResume && !isRetry && !gotOutput) {
+          // Resume failed: either exit code non-zero or got error result with no real text
+          const shouldRetry = attemptedResume && !isRetry && !gotTextOutput
+            && (code !== 0 || resumeError);
+          if (shouldRetry) {
             console.log('[CC CLI] Resume failed, retrying without --resume');
             controller.enqueue(
               encoder.encode(
