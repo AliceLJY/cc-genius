@@ -25,8 +25,16 @@ export function useConversations() {
   // Create new conversation
   const create = useCallback(
     async (model: ModelType = 'sonnet') => {
+      // Generate ID with fallback for non-secure contexts
+      let id: string;
+      try {
+        id = uuidv4();
+      } catch {
+        id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      }
+
       const conv: Conversation = {
-        id: uuidv4(),
+        id,
         title: 'New Chat',
         model,
         createdAt: Date.now(),

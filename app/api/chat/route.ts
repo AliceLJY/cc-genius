@@ -22,7 +22,6 @@ export async function POST(req: Request) {
     '--verbose',
     '--include-partial-messages',
     '--model', model || 'sonnet',
-    '--no-session-persistence', // we manage our own persistence
   ];
 
   // Multi-turn: resume previous CC session

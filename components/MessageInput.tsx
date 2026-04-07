@@ -18,13 +18,18 @@ export default function MessageInput({ onSend, onStop, isStreaming, disabled }: 
 
   const handleSend = useCallback(() => {
     if ((!text.trim() && images.length === 0) || disabled) return;
-    onSend(text, images.length > 0 ? images : undefined);
+    // Capture values BEFORE clearing to avoid race conditions
+    const currentText = text;
+    const currentImages = images.length > 0 ? [...images] : undefined;
+    // Clear input immediately (before async send)
     setText('');
     setImages([]);
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
+      textareaRef.current.value = ''; // Direct DOM clear as safety net
     }
+    // Then send with captured values
+    onSend(currentText, currentImages);
   }, [text, images, disabled, onSend]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

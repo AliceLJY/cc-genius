@@ -54,22 +54,32 @@ export default function Home() {
 
   const handleSend = useCallback(
     async (text: string, images?: ImageAttachment[]) => {
-      let targetId = activeId;
-      if (!targetId) {
-        const conv = await create(model);
-        targetId = conv.id;
+      try {
+        let targetId = activeId;
+        if (!targetId) {
+          const conv = await create(model);
+          targetId = conv.id;
+        }
+        // Pass targetId explicitly to avoid stale closure
+        send(text, model, images, targetId);
+        setTimeout(() => refresh(), 500);
+      } catch (err) {
+        console.error('[CC Genius] Send failed:', err);
       }
-      // Pass targetId explicitly to avoid stale closure
-      send(text, model, images, targetId);
-      setTimeout(() => refresh(), 500);
     },
     [activeId, model, create, send, refresh]
   );
 
   const handleNewChat = useCallback(async () => {
-    await create(model);
-    if (window.innerWidth < 1024) {
-      setSidebarOpen(false);
+    try {
+      await create(model);
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      }
+    } catch (err) {
+      console.error('[CC Genius] Create chat failed:', err);
+      // Fallback: try without IndexedDB if it fails
+      alert('Failed to create chat. Please refresh and try again.');
     }
   }, [create, model]);
 

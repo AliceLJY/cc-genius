@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -21,9 +20,6 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-// Inline script to prevent flash of wrong theme (FOUC).
-const themeScript = `(function(){var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')})()`;
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,13 +28,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {themeScript}
-        </Script>
         <link rel="apple-touch-icon" href="/icons/icon-180.png" />
       </head>
       <body className="antialiased bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
         {children}
+        {/* Theme init script - loaded as static file to avoid hydration issues */}
+        <script src="/theme-init.js" />
       </body>
     </html>
   );
