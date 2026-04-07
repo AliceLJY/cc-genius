@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CC Genius
 
-## Getting Started
+A web-based Claude chat client (PWA) powered by [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code). Self-hosted on your Mac, accessible from iPad via Tailscale -- no API key needed.
 
-First, run the development server:
+![CC Genius](https://img.shields.io/badge/CC_Genius-PWA-blue) ![Next.js](https://img.shields.io/badge/Next.js-16-black) ![License](https://img.shields.io/badge/License-MIT-green)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+- **Claude Code CLI Backend** -- Uses your existing CC subscription (OAuth), no API key required
+- **Multi-turn Conversations** -- Session resume via `--resume` flag
+- **Streaming Output** -- Real-time SSE streaming with Markdown + code highlighting
+- **Image & File Upload** -- Upload images, PDFs, code files -- CC CLI reads them via its Read tool
+- **Model Selection** -- Switch between Sonnet, Opus, and Haiku
+- **Dark/Light/System Theme** -- Flash-free theme initialization
+- **PWA** -- Add to iPad home screen for fullscreen, app-like experience
+- **Responsive Layout** -- iPad landscape = split panels, portrait = collapsible sidebar
+- **Local Storage** -- IndexedDB for conversation persistence (per device)
+
+## Architecture
+
+```
+iPad Safari (PWA)  --Tailscale-->  Mac (Next.js Server)
+                                       |
+                                       |-- SSE Stream <--> Claude Code CLI
+                                       |                    (OAuth via ~/.claude)
+                                       +-- IndexedDB (client-side)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Quick Start
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Prerequisites
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- macOS with [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and logged in
+- Node.js 18+
+- [Tailscale](https://tailscale.com/) (for iPad access)
 
-## Learn More
+### Install & Run
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+git clone https://github.com/AliceLJY/cc-genius.git
+cd cc-genius
+npm install
+npm run build
+npx next start --port 3088 --hostname 0.0.0.0
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Access
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Mac**: http://localhost:3088
+- **iPad**: `http://<your-tailscale-ip>:3088` (find IP via `tailscale ip -4`)
 
-## Deploy on Vercel
+### Add to iPad Home Screen
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Open the URL in Safari
+2. Tap the Share button (box with arrow)
+3. Select **"Add to Home Screen"**
+4. Enjoy fullscreen, app-like experience
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Rebuild After Code Changes
+
+```bash
+./scripts/rebuild.sh
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router) + Tailwind CSS 4 |
+| Backend | Claude Code CLI (`claude -p --output-format stream-json`) |
+| Streaming | Server-Sent Events (SSE) |
+| Storage | IndexedDB via `idb` |
+| Rendering | `react-markdown` + `remark-gfm` + `rehype-highlight` |
+| PWA | Web App Manifest + standalone display |
+
+## Why Not Use the API Directly?
+
+CC Genius uses the Claude Code CLI as its backend instead of the Anthropic API:
+
+- **No API key management** -- Uses your existing Claude Code subscription
+- **Same auth as your terminal** -- OAuth token from `~/.claude` is reused
+- **Tool access** -- CC CLI can read files, run code, and use all its built-in tools
+- **No extra cost** -- Covered by your Claude Code subscription
+
+> **Note**: Production build is required for iPad access. Next.js dev server's HMR WebSocket causes cross-origin script errors over non-localhost networks.
+
+## License
+
+MIT
