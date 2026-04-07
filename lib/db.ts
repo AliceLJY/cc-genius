@@ -3,7 +3,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Conversation, Message } from './types';
 
-const DB_NAME = 'cc-baby';
+const DB_NAME = 'cc-genius';
 const DB_VERSION = 1;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;

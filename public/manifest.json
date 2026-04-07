@@ -1,6 +1,6 @@
 {
-  "name": "CC Baby",
-  "short_name": "CC Baby",
+  "name": "CC Genius",
+  "short_name": "CC Genius",
   "description": "Your personal Claude chat companion",
   "start_url": "/",
   "display": "standalone",

@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CC Baby',
+  title: 'CC Genius',
   description: 'Your personal Claude chat companion (PWA)',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'CC Baby',
+    title: 'CC Genius',
   },
 };
 
