@@ -12,7 +12,14 @@ import type { ModelType, ImageAttachment } from '@/lib/types';
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [model, setModel] = useState<ModelType>('sonnet');
+  const [hydrated, setHydrated] = useState(false);
   const { theme, setTheme } = useTheme();
+
+  // Track hydration success
+  useEffect(() => {
+    setHydrated(true);
+    console.log('[CC Genius] React hydrated successfully');
+  }, []);
 
   const {
     conversations,
@@ -105,6 +112,12 @@ export default function Home() {
 
   return (
     <div className="h-dvh flex overflow-hidden bg-white dark:bg-gray-950">
+      {/* Hydration indicator - remove after debugging */}
+      {!hydrated && (
+        <div className="fixed top-2 right-2 z-[99999] bg-red-600 text-white text-xs px-2 py-1 rounded">
+          ⏳ JS Loading...
+        </div>
+      )}
       {/* Sidebar overlay (mobile) */}
       {sidebarOpen && (
         <div

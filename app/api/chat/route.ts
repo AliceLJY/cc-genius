@@ -1,9 +1,36 @@
 import { spawn } from 'child_process';
+import { writeFile, unlink, mkdir } from 'fs/promises';
+import { join } from 'path';
 import { parseStreamLine } from '@/lib/stream-parser';
 import type { ChatRequest } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 min timeout
+
+const TEMP_DIR = '/tmp/cc-genius-uploads';
+
+// Save base64 images/files to temp directory, return file paths
+async function saveTempFiles(images: ChatRequest['images']): Promise<string[]> {
+  if (!images || images.length === 0) return [];
+  await mkdir(TEMP_DIR, { recursive: true });
+
+  const paths: string[] = [];
+  for (const img of images) {
+    const ext = img.mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+    const filename = `upload-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const filepath = join(TEMP_DIR, filename);
+    await writeFile(filepath, Buffer.from(img.base64, 'base64'));
+    paths.push(filepath);
+  }
+  return paths;
+}
+
+// Clean up temp files
+function cleanupFiles(paths: string[]) {
+  for (const p of paths) {
+    unlink(p).catch(() => {});
+  }
+}
 
 export async function POST(req: Request) {
   const body: ChatRequest = await req.json();
@@ -13,6 +40,14 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ error: 'No message or images provided' }), {
       status: 400,
     });
+  }
+
+  // Save uploaded images/files to temp directory
+  let tempFiles: string[] = [];
+  try {
+    tempFiles = await saveTempFiles(images);
+  } catch (err) {
+    console.error('[CC Genius] Failed to save temp files:', err);
   }
 
   // Build CLI args
@@ -29,9 +64,15 @@ export async function POST(req: Request) {
     args.push('--resume', ccSessionId);
   }
 
-  // Build the prompt - for now, just the message text
-  // Images handled via stdin stream-json if supported, otherwise as file refs
-  args.push(message || 'Describe this image.');
+  // Build the prompt with file references
+  let prompt = message || '';
+  if (tempFiles.length > 0) {
+    const fileRefs = tempFiles.map((p) => `[Attached file: ${p}]`).join('\n');
+    prompt = prompt
+      ? `${prompt}\n\n${fileRefs}\n\nPlease read and analyze the attached file(s) above.`
+      : `${fileRefs}\n\nPlease read and describe the attached file(s) above.`;
+  }
+  args.push(prompt);
 
   const encoder = new TextEncoder();
 
@@ -118,6 +159,9 @@ export async function POST(req: Request) {
       });
 
       proc.on('close', (code) => {
+        // Clean up temp files
+        cleanupFiles(tempFiles);
+
         if (code !== 0 && code !== null) {
           const errMsg = stderrBuffer.trim() || `Process exited with code ${code}`;
           console.error(`[CC CLI] exit code ${code}, stderr:`, stderrBuffer.trim());
