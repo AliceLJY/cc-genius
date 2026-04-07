@@ -1,5 +1,7 @@
 # CC Genius
 
+[English README](README.md)
+
 基于 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) 的 Web 版 Claude 聊天客户端（PWA）。Mac 自托管，iPad 通过 Tailscale 访问，无需 API Key。
 
 ![CC Genius](https://img.shields.io/badge/CC_Genius-PWA-blue) ![Next.js](https://img.shields.io/badge/Next.js-16-black) ![License](https://img.shields.io/badge/License-MIT-green)

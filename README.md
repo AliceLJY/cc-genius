@@ -1,5 +1,7 @@
 # CC Genius
 
+[中文版 README](README_CN.md)
+
 A web-based Claude chat client (PWA) powered by [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code). Self-hosted on your Mac, accessible from iPad via Tailscale -- no API key needed.
 
 ![CC Genius](https://img.shields.io/badge/CC_Genius-PWA-blue) ![Next.js](https://img.shields.io/badge/Next.js-16-black) ![License](https://img.shields.io/badge/License-MIT-green)
