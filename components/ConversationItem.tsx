@@ -46,10 +46,14 @@ export default function ConversationItem({ conversation, isActive, onSelect, onD
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onDelete();
+          if (confirm('Delete this conversation?')) {
+            onDelete();
+          }
         }}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100
-          dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all"
+        className={`${
+          isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        } p-1.5 rounded hover:bg-red-100
+          dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all`}
         title="Delete"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
