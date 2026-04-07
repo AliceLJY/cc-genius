@@ -132,7 +132,10 @@ export function useChat(conversationId: string | null) {
                   break;
 
                 case 'session_id':
-                  if (event.sessionId) {
+                  // Only store session_id on first message (no resume).
+                  // When resuming, CC CLI returns a NEW temp session_id
+                  // but the ORIGINAL one (from 'result') is what works for future resumes.
+                  if (event.sessionId && !ccSessionId) {
                     setCcSessionId(event.sessionId);
                     await db.updateConversation(convId, {
                       ccSessionId: event.sessionId,
