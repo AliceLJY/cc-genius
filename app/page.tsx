@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import ChatArea from '@/components/ChatArea';
 import ThemeToggle from '@/components/ThemeToggle';
+import SessionPicker from '@/components/SessionPicker';
 import { useConversations } from '@/hooks/useConversations';
 import { useChat } from '@/hooks/useChat';
 import { useTheme } from '@/hooks/useTheme';
@@ -11,6 +12,7 @@ import type { ModelType, ImageAttachment } from '@/lib/types';
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
   const [model, setModel] = useState<ModelType>('sonnet');
   const [hydrated, setHydrated] = useState(false);
   const { theme, setTheme } = useTheme();
@@ -25,6 +27,7 @@ export default function Home() {
     conversations,
     activeId,
     create,
+    resumeSession,
     remove,
     select,
     refresh,
@@ -110,6 +113,17 @@ export default function Home() {
     [remove, refresh]
   );
 
+  const handleResumeSession = useCallback(
+    async (ccSessionId: string, title: string) => {
+      await resumeSession(ccSessionId, title, model);
+      setSessionPickerOpen(false);
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      }
+    },
+    [resumeSession, model]
+  );
+
   return (
     <div className="h-dvh flex overflow-hidden bg-white dark:bg-gray-950">
       {/* Hydration indicator - remove after debugging */}
@@ -142,6 +156,7 @@ export default function Home() {
           onSelect={handleSelectConversation}
           onDelete={handleDelete}
           onCreate={handleNewChat}
+          onResumePicker={() => setSessionPickerOpen(true)}
           onClose={() => setSidebarOpen(false)}
         />
         {/* Theme toggle at bottom of sidebar */}
@@ -163,6 +178,13 @@ export default function Home() {
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
       </div>
+
+      {/* Session Picker Modal */}
+      <SessionPicker
+        open={sessionPickerOpen}
+        onClose={() => setSessionPickerOpen(false)}
+        onResume={handleResumeSession}
+      />
     </div>
   );
 }

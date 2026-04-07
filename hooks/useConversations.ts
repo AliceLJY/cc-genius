@@ -70,6 +70,32 @@ export function useConversations() {
     await load();
   }, [load]);
 
+  // Resume an external CC session (from terminal/TG)
+  const resumeSession = useCallback(
+    async (ccSessionId: string, title: string, model: ModelType = 'sonnet') => {
+      let id: string;
+      try {
+        id = uuidv4();
+      } catch {
+        id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      }
+
+      const conv: Conversation = {
+        id,
+        title: title || 'Resumed Session',
+        model,
+        ccSessionId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      await db.createConversation(conv);
+      setConversations((prev) => [conv, ...prev]);
+      setActiveId(conv.id);
+      return conv;
+    },
+    []
+  );
+
   const active = conversations.find((c) => c.id === activeId) || null;
 
   return {
@@ -77,6 +103,7 @@ export function useConversations() {
     active,
     activeId,
     create,
+    resumeSession,
     remove,
     select,
     refresh,

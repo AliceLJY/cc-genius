@@ -11,6 +11,7 @@ interface Props {
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: (model?: ModelType) => void;
+  onResumePicker?: () => void;
   onClose?: () => void;
 }
 
@@ -22,6 +23,7 @@ export default function Sidebar({
   onSelect,
   onDelete,
   onCreate,
+  onResumePicker,
   onClose,
 }: Props) {
   return (
@@ -43,11 +45,11 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* New chat button */}
-      <div className="px-3 pb-2">
+      {/* New chat + Resume buttons */}
+      <div className="px-3 pb-2 flex gap-2">
         <button
           onClick={() => onCreate()}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl
             border-2 border-dashed border-gray-300 dark:border-gray-600
             text-gray-600 dark:text-gray-300
             hover:bg-gray-100 dark:hover:bg-gray-800
@@ -57,8 +59,24 @@ export default function Sidebar({
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          New Chat
+          New
         </button>
+        {onResumePicker && (
+          <button
+            onClick={onResumePicker}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl
+              border-2 border-dashed border-gray-300 dark:border-gray-600
+              text-gray-600 dark:text-gray-300
+              hover:bg-gray-100 dark:hover:bg-gray-800
+              hover:border-purple-400 dark:hover:border-purple-500
+              transition-colors text-sm font-medium"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Resume
+          </button>
+        )}
       </div>
 
       {/* Search */}
