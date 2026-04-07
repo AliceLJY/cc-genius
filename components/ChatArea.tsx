@@ -69,7 +69,7 @@ export default function ChatArea({
               C
             </div>
             <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
-              Claude Chat
+              CC Baby
             </h2>
             <p className="text-gray-500 dark:text-gray-400 text-sm max-w-sm">
               Start a new conversation or select one from the sidebar.

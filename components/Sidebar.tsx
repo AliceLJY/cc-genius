@@ -29,7 +29,7 @@ export default function Sidebar({
       {/* Header */}
       <div className="flex items-center gap-2 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3">
         <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex-1">
-          Claude Chat
+          CC Baby
         </h1>
         {onClose && (
           <button

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'claude-chat-v1';
+const CACHE_NAME = 'cc-baby-v1';
 
 // Static assets to cache
 const STATIC_ASSETS = [

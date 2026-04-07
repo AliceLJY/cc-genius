@@ -1,7 +1,7 @@
 {
-  "name": "Claude Chat",
-  "short_name": "Claude",
-  "description": "Web-based Claude chat client",
+  "name": "CC Baby",
+  "short_name": "CC Baby",
+  "description": "Your personal Claude chat companion",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
