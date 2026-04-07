@@ -96,15 +96,13 @@ export default function ChatArea({
         )}
       </div>
 
-      {/* Input */}
-      {conversationId && (
-        <MessageInput
-          onSend={onSend}
-          onStop={onStop}
-          isStreaming={isStreaming}
-          disabled={!conversationId}
-        />
-      )}
+      {/* Input - always visible, auto-creates conversation on first send */}
+      <MessageInput
+        onSend={onSend}
+        onStop={onStop}
+        isStreaming={isStreaming}
+        disabled={false}
+      />
     </div>
   );
 }

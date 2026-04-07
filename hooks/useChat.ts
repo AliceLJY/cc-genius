@@ -34,15 +34,16 @@ export function useChat(conversationId: string | null) {
     }
   }, [conversationId]);
 
-  // Send a message
+  // Send a message (overrideConvId allows callers to pass a freshly-created ID)
   const send = useCallback(
-    async (content: string, model: ModelType, images?: ImageAttachment[]) => {
-      if (!conversationId || (!content.trim() && (!images || images.length === 0))) return;
+    async (content: string, model: ModelType, images?: ImageAttachment[], overrideConvId?: string) => {
+      const convId = overrideConvId || conversationId;
+      if (!convId || (!content.trim() && (!images || images.length === 0))) return;
 
       // Save user message
       const userMsg: Message = {
         id: uuidv4(),
-        conversationId,
+        conversationId: convId,
         role: 'user',
         content: content.trim(),
         images,
@@ -52,10 +53,10 @@ export function useChat(conversationId: string | null) {
       setMessages((prev) => [...prev, userMsg]);
 
       // Update conversation title from first user message
-      const conv = await db.getConversation(conversationId);
+      const conv = await db.getConversation(convId);
       if (conv && conv.title === 'New Chat') {
         const title = content.trim().slice(0, 50) || 'New Chat';
-        await db.updateConversation(conversationId, {
+        await db.updateConversation(convId, {
           title,
           updatedAt: Date.now(),
         });
@@ -65,7 +66,7 @@ export function useChat(conversationId: string | null) {
       const assistantMsgId = uuidv4();
       const assistantMsg: Message = {
         id: assistantMsgId,
-        conversationId,
+        conversationId: convId,
         role: 'assistant',
         content: '',
         timestamp: Date.now(),
@@ -86,7 +87,7 @@ export function useChat(conversationId: string | null) {
           body: JSON.stringify({
             message: content.trim(),
             model,
-            conversationId,
+            conversationId: convId,
             ccSessionId,
             images,
           }),
@@ -133,7 +134,7 @@ export function useChat(conversationId: string | null) {
                 case 'session_id':
                   if (event.sessionId) {
                     setCcSessionId(event.sessionId);
-                    await db.updateConversation(conversationId, {
+                    await db.updateConversation(convId, {
                       ccSessionId: event.sessionId,
                     });
                   }
@@ -168,7 +169,7 @@ export function useChat(conversationId: string | null) {
           });
 
           // Update conversation timestamp
-          await db.updateConversation(conversationId, {
+          await db.updateConversation(convId, {
             updatedAt: Date.now(),
           });
         }

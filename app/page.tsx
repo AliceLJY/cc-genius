@@ -59,8 +59,8 @@ export default function Home() {
         const conv = await create(model);
         targetId = conv.id;
       }
-      send(text, model, images);
-      // Refresh sidebar to update title/order
+      // Pass targetId explicitly to avoid stale closure
+      send(text, model, images, targetId);
       setTimeout(() => refresh(), 500);
     },
     [activeId, model, create, send, refresh]
