@@ -36,7 +36,7 @@ export function useChat(conversationId: string | null) {
 
   // Send a message (overrideConvId allows callers to pass a freshly-created ID)
   const send = useCallback(
-    async (content: string, model: ModelType, images?: ImageAttachment[], overrideConvId?: string) => {
+    async (content: string, model: ModelType, images?: ImageAttachment[], overrideConvId?: string, effort?: string) => {
       const convId = overrideConvId || conversationId;
       if (!convId || (!content.trim() && (!images || images.length === 0))) return;
 
@@ -90,6 +90,7 @@ export function useChat(conversationId: string | null) {
             conversationId: convId,
             ccSessionId,
             images,
+            effort: effort || undefined,
           }),
           signal: abortController.signal,
         });
@@ -211,5 +212,65 @@ export function useChat(conversationId: string | null) {
     abortRef.current?.abort();
   }, []);
 
-  return { messages, isStreaming, send, stop, loadMessages };
+  // Clear all messages in current conversation (keep conversation itself)
+  const clearMessages = useCallback(
+    async () => {
+      if (!conversationId) return;
+      await db.deleteMessages(conversationId);
+      await db.updateConversation(conversationId, { ccSessionId: undefined });
+      setMessages([]);
+      setCcSessionId(undefined);
+    },
+    [conversationId]
+  );
+
+  // Send a compact request
+  const compact = useCallback(
+    async (model: ModelType) => {
+      const convId = conversationId;
+      if (!convId) return;
+
+      setIsStreaming(true);
+      const abortController = new AbortController();
+      abortRef.current = abortController;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'compact',
+            model,
+            conversationId: convId,
+            ccSessionId,
+            compact: true,
+          }),
+          signal: abortController.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        }
+
+        // Consume the stream but don't display (compact is a background operation)
+        const reader = res.body?.getReader();
+        if (reader) {
+          while (true) {
+            const { done } = await reader.read();
+            if (done) break;
+          }
+        }
+      } catch (err: unknown) {
+        if (!(err instanceof Error && err.name === 'AbortError')) {
+          console.error('[CC Genius] Compact failed:', err);
+        }
+      } finally {
+        setIsStreaming(false);
+        abortRef.current = null;
+      }
+    },
+    [conversationId, ccSessionId]
+  );
+
+  return { messages, isStreaming, send, stop, loadMessages, clearMessages, compact, ccSessionId };
 }

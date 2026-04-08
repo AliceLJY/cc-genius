@@ -14,6 +14,7 @@ interface Props {
   conversationId: string | null;
   onSend: (text: string, images?: ImageAttachment[]) => void;
   onStop: () => void;
+  onCommand: (name: string, args?: string) => void;
   onModelChange: (m: ModelType) => void;
   onToggleSidebar: () => void;
 }
@@ -25,6 +26,7 @@ export default function ChatArea({
   conversationId,
   onSend,
   onStop,
+  onCommand,
   onModelChange,
   onToggleSidebar,
 }: Props) {
@@ -100,6 +102,7 @@ export default function ChatArea({
       <MessageInput
         onSend={onSend}
         onStop={onStop}
+        onCommand={onCommand}
         isStreaming={isStreaming}
         disabled={false}
       />

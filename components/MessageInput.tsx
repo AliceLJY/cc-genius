@@ -2,17 +2,24 @@
 
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react';
 import type { ImageAttachment } from '@/lib/types';
+import { filterCommands, type SlashCommand, type EffortLevel } from '@/lib/commands';
+import CommandPalette from './CommandPalette';
 
 interface Props {
   onSend: (text: string, images?: ImageAttachment[]) => void;
   onStop: () => void;
+  onCommand: (name: string, args?: string) => void;
   isStreaming: boolean;
   disabled: boolean;
 }
 
-export default function MessageInput({ onSend, onStop, isStreaming, disabled }: Props) {
+export default function MessageInput({ onSend, onStop, onCommand, isStreaming, disabled }: Props) {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [showCommands, setShowCommands] = useState(false);
+  const [cmdIndex, setCmdIndex] = useState(0);
+  const [showEffortSub, setShowEffortSub] = useState(false);
+  const [effortIndex, setEffortIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,7 +39,101 @@ export default function MessageInput({ onSend, onStop, isStreaming, disabled }: 
     onSend(currentText, currentImages);
   }, [text, images, disabled, onSend]);
 
+  // Close command palette and reset state
+  const closePalette = useCallback(() => {
+    setShowCommands(false);
+    setShowEffortSub(false);
+    setCmdIndex(0);
+    setEffortIndex(0);
+  }, []);
+
+  // Handle command selection from palette
+  const handleCommandSelect = useCallback((cmd: SlashCommand) => {
+    if (cmd.name === '/effort') {
+      setShowEffortSub(true);
+      setEffortIndex(0);
+      return;
+    }
+    setText('');
+    closePalette();
+    onCommand(cmd.name);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  }, [onCommand, closePalette]);
+
+  // Handle effort level selection
+  const handleEffortSelect = useCallback((level: EffortLevel) => {
+    setText('');
+    closePalette();
+    onCommand('/effort', level);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  }, [onCommand, closePalette]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Command palette keyboard navigation
+    if (showCommands) {
+      if (showEffortSub) {
+        const levels: EffortLevel[] = ['low', 'medium', 'high'];
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setEffortIndex((prev) => (prev > 0 ? prev - 1 : levels.length - 1));
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setEffortIndex((prev) => (prev < levels.length - 1 ? prev + 1 : 0));
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleEffortSelect(levels[effortIndex]);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setShowEffortSub(false);
+          return;
+        }
+        return;
+      }
+
+      const filtered = filterCommands(text);
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCmdIndex((prev) => (prev > 0 ? prev - 1 : filtered.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCmdIndex((prev) => (prev < filtered.length - 1 ? prev + 1 : 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filtered[cmdIndex]) {
+          handleCommandSelect(filtered[cmdIndex]);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePalette();
+        return;
+      }
+      // Tab also selects
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (filtered[cmdIndex]) {
+          handleCommandSelect(filtered[cmdIndex]);
+        }
+        return;
+      }
+    }
+
+    // Normal: Enter to send
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -40,7 +141,18 @@ export default function MessageInput({ onSend, onStop, isStreaming, disabled }: 
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
+    const val = e.target.value;
+    setText(val);
+
+    // Command palette detection
+    if (val.startsWith('/') && !val.includes(' ')) {
+      setShowCommands(true);
+      setCmdIndex(0);
+      setShowEffortSub(false);
+    } else {
+      closePalette();
+    }
+
     // Auto-resize
     const el = e.target;
     el.style.height = 'auto';
@@ -71,7 +183,7 @@ export default function MessageInput({ onSend, onStop, isStreaming, disabled }: 
   };
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3
+    <div className="relative border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3
       pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
       {/* Image previews */}
       {images.length > 0 && (
@@ -106,6 +218,18 @@ export default function MessageInput({ onSend, onStop, isStreaming, disabled }: 
             </div>
           ))}
         </div>
+      )}
+
+      {/* Command Palette */}
+      {showCommands && (
+        <CommandPalette
+          filter={text}
+          selectedIndex={cmdIndex}
+          onSelect={handleCommandSelect}
+          onEffortSelect={handleEffortSelect}
+          showEffortSub={showEffortSub}
+          effortIndex={effortIndex}
+        />
       )}
 
       <div className="flex items-end gap-2">

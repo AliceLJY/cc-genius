@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cc-genius-v1';
+const CACHE_NAME = 'cc-genius-v2';
 
 // Static assets to cache
 const STATIC_ASSETS = [

@@ -30,6 +30,8 @@ export interface ChatRequest {
   conversationId: string;
   ccSessionId?: string;
   images?: ImageAttachment[];
+  compact?: boolean;
+  effort?: 'low' | 'medium' | 'high';
 }
 
 export interface StreamEvent {

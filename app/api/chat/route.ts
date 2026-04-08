@@ -32,7 +32,15 @@ function cleanupFiles(paths: string[]) {
   }
 }
 
-function buildArgs(model: string, ccSessionId: string | undefined, prompt: string): string[] {
+interface BuildArgsOptions {
+  model: string;
+  ccSessionId?: string;
+  prompt: string;
+  compact?: boolean;
+  effort?: string;
+}
+
+function buildArgs({ model, ccSessionId, prompt, compact, effort }: BuildArgsOptions): string[] {
   const args: string[] = [
     '-p',
     '--output-format', 'stream-json',
@@ -42,6 +50,12 @@ function buildArgs(model: string, ccSessionId: string | undefined, prompt: strin
   ];
   if (ccSessionId) {
     args.push('--resume', ccSessionId);
+  }
+  if (compact) {
+    args.push('--compact');
+  }
+  if (effort && ['low', 'medium', 'high'].includes(effort)) {
+    args.push('--effort', effort);
   }
   args.push(prompt);
   return args;
@@ -61,7 +75,7 @@ function spawnCLI(args: string[]): ChildProcess {
 
 export async function POST(req: Request) {
   const body: ChatRequest = await req.json();
-  const { message, model, ccSessionId, images } = body;
+  const { message, model, ccSessionId, images, compact, effort } = body;
 
   if (!message && (!images || images.length === 0)) {
     return new Response(JSON.stringify({ error: 'No message or images provided' }), {
@@ -92,7 +106,7 @@ export async function POST(req: Request) {
     start(controller) {
       // Try with resume first; if it fails, retry without resume
       const attemptedResume = !!ccSessionId;
-      const args = buildArgs(model, ccSessionId, prompt);
+      const args = buildArgs({ model, ccSessionId, prompt, compact, effort });
 
       function runProcess(procArgs: string[], isRetry: boolean) {
         console.log('[CC CLI] spawning:', 'claude', procArgs.join(' ').slice(0, 200));
@@ -180,7 +194,7 @@ export async function POST(req: Request) {
                 `data: ${JSON.stringify({ type: 'delta', text: '_(Session expired, starting fresh)_\n\n' })}\n\n`
               )
             );
-            const retryArgs = buildArgs(model, undefined, prompt);
+            const retryArgs = buildArgs({ model, prompt, compact, effort });
             runProcess(retryArgs, true);
             return;
           }
