@@ -159,12 +159,29 @@ export default function MessageInput({ onSend, onStop, onCommand, isStreaming, d
     el.style.height = Math.min(el.scrollHeight, 200) + 'px';
   };
 
+  // P2: Limit file uploads
+  const MAX_FILES = 10;
+  const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB per file
+
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
+    // P2: Enforce file count limit
+    const fileArray = Array.from(files);
+    if (images.length + fileArray.length > MAX_FILES) {
+      alert(`Too many files. Maximum ${MAX_FILES} files allowed.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     const newAttachments: ImageAttachment[] = [];
-    for (const file of Array.from(files)) {
+    for (const file of fileArray) {
+      // P2: Enforce file size limit
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File "${file.name}" is too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024} MB.`);
+        continue;
+      }
       // Support images and common document types
       const base64 = await fileToBase64(file);
       newAttachments.push({
@@ -176,7 +193,7 @@ export default function MessageInput({ onSend, onStop, onCommand, isStreaming, d
     setImages((prev) => [...prev, ...newAttachments]);
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, []);
+  }, [images.length]);
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -303,15 +320,28 @@ export default function MessageInput({ onSend, onStop, onCommand, isStreaming, d
   );
 }
 
-function fileToBase64(file: File): Promise<string> {
+// P2: FileReader with abort support and error handling
+function fileToBase64(file: File, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+
+    // P2: Abort FileReader if signal fires
+    const onAbort = () => {
+      reader.abort();
+      reject(new Error('File reading aborted'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+
     reader.onload = () => {
+      signal?.removeEventListener('abort', onAbort);
       const result = reader.result as string;
       // Remove data:image/xxx;base64, prefix
       resolve(result.split(',')[1]);
     };
-    reader.onerror = reject;
+    reader.onerror = () => {
+      signal?.removeEventListener('abort', onAbort);
+      reject(reader.error || new Error('Failed to read file'));
+    };
     reader.readAsDataURL(file);
   });
 }

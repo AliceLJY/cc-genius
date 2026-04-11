@@ -84,7 +84,10 @@ async function parseSessionFile(fileInfo: { path: string; mtime: number; size: n
             lastTopic = cleaned.slice(0, 80);
           }
         }
-      } catch { /* skip malformed lines */ }
+      } catch (parseErr) {
+          // P2: Log skipped JSONL lines instead of silently swallowing
+          console.warn('[CC Sessions] Skipped malformed JSONL line in', fileInfo.path, ':', parseErr instanceof Error ? parseErr.message : 'parse error');
+        }
     }
     rl.close();
     stream.destroy();
@@ -104,7 +107,9 @@ async function parseSessionFile(fileInfo: { path: string; mtime: number; size: n
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const limit = Math.min(parseInt(url.searchParams.get('limit') || '15', 10), 30);
+  // P2: NaN guard for limit parameter
+  const rawLimit = parseInt(url.searchParams.get('limit') || '15', 10);
+  const limit = Math.min(Number.isNaN(rawLimit) ? 15 : rawLimit, 30);
 
   const files = listSessionFiles(limit);
   const sessions: SessionInfo[] = [];

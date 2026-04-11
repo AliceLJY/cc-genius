@@ -12,11 +12,16 @@ interface SSEEvent {
   error?: string;
 }
 
+// P2: Max accumulated text size on client side (5 MB)
+const MAX_CLIENT_TEXT = 5 * 1024 * 1024;
+
 export function useChat(conversationId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [ccSessionId, setCcSessionId] = useState<string | undefined>();
   const abortRef = useRef<AbortController | null>(null);
+  // P1: Track in-flight request IDs to prevent double-send
+  const sendingRef = useRef<string | null>(null);
 
   // Load messages from IndexedDB
   const loadMessages = useCallback(async () => {
@@ -39,6 +44,14 @@ export function useChat(conversationId: string | null) {
     async (content: string, model: ModelType, images?: ImageAttachment[], overrideConvId?: string, effort?: string) => {
       const convId = overrideConvId || conversationId;
       if (!convId || (!content.trim() && (!images || images.length === 0))) return;
+
+      // P1: Prevent double-send - if already sending for this conversation, skip
+      const requestKey = `${convId}-${Date.now()}`;
+      if (sendingRef.current) {
+        console.warn('[CC Genius] Blocked duplicate send while request in flight');
+        return;
+      }
+      sendingRef.current = requestKey;
 
       // Save user message
       const userMsg: Message = {
@@ -123,6 +136,11 @@ export function useChat(conversationId: string | null) {
               switch (event.type) {
                 case 'delta':
                   if (event.text) {
+                    // P2: Cap accumulated text to prevent unbounded memory growth
+                    if (accumulated.length + event.text.length > MAX_CLIENT_TEXT) {
+                      console.warn('[CC Genius] Accumulated text exceeded client limit, truncating');
+                      break;
+                    }
                     accumulated += event.text;
                     setMessages((prev) =>
                       prev.map((m) =>
@@ -202,6 +220,8 @@ export function useChat(conversationId: string | null) {
       } finally {
         setIsStreaming(false);
         abortRef.current = null;
+        // P1: Clear sending guard
+        sendingRef.current = null;
       }
     },
     [conversationId, ccSessionId]
