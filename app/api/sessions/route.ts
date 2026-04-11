@@ -1,10 +1,11 @@
 import { readdirSync, statSync, createReadStream } from 'fs';
 import { join, basename } from 'path';
 import { createInterface } from 'readline';
+import os from 'os';
 
 export const runtime = 'nodejs';
 
-const PROJECTS_DIR = join(process.env.HOME || '/Users/anxianjingya', '.claude', 'projects');
+const PROJECTS_DIR = join(process.env.HOME || os.homedir(), '.claude', 'projects');
 
 interface SessionInfo {
   sessionId: string;

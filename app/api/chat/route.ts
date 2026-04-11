@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { writeFile, unlink, mkdir } from 'fs/promises';
 import { join } from 'path';
+import os from 'os';
 import { parseStreamLine } from '@/lib/stream-parser';
 import type { ChatRequest } from '@/lib/types';
 
@@ -66,9 +67,9 @@ function spawnCLI(args: string[]): ChildProcess {
     env: {
       ...process.env,
       LANG: 'en_US.UTF-8',
-      HOME: process.env.HOME || '/Users/anxianjingya',
+      HOME: process.env.HOME || os.homedir(),
     },
-    cwd: process.env.HOME || '/Users/anxianjingya',
+    cwd: process.env.HOME || os.homedir(),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 }
